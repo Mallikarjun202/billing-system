@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 from fastapi.templating import Jinja2Templates
@@ -33,7 +34,10 @@ def format_money_short(value) -> str:
 
 
 def initials(text: str) -> str:
-    words = [w for w in str(text or "").replace("@", " ").replace(".", " ").split() if w]
+    # For an email, only the part before the @ counts: riya@example.com -> RI, kabir.gupta@... -> KG
+    name = str(text or "").split("@")[0]
+    words = re.split(r"[\s._-]+", name.strip(" ._-"))
+    words = [w for w in words if w]
     if not words:
         return "?"
     if len(words) == 1:

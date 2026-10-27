@@ -118,7 +118,7 @@
                     {{ avatar(p.customer_email, size="sm") }}
                     <span class="who-text">
                         <strong>{{ p.customer_email }}</strong>
-                        <small>#{{ p.id }} · {{ p.created_at | datetime }} · {{ p.items | sum(attribute="quantity") }} items</small>
+                        <small>#{{ p.id }} · {{ p.created_at | datetime }} · {% set n = p.items | sum(attribute="quantity") %}{{ n }} item{{ "s" if n != 1 }}</small>
                     </span>
                 </span>
                 <span class="amount">{{ p.rounded_net_price | money }}</span>

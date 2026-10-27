@@ -24,7 +24,7 @@
 
     const hue = (key) => HUES[[...key].reduce((s, c) => s + c.charCodeAt(0), 0) % HUES.length];
     const initials = (name) => {
-        const words = name.replace(/[@.]/g, " ").split(/\s+/).filter(Boolean);
+        const words = name.split("@")[0].split(/[\s._-]+/).filter(Boolean);
         return words.length > 1 ? (words[0][0] + words[1][0]).toUpperCase() : (words[0] || "?").slice(0, 2).toUpperCase();
     };
 
