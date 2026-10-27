@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ status_code }}{% endblock %}
+{% block content %}
+{% from "_macros.html" import icon %}
+<section class="card empty" style="padding: 64px 20px">
+    <span class="empty-icon">{{ icon("alert") }}</span>
+    <div class="eyebrow" style="justify-content: center">Error {{ status_code }}</div>
+    <h1>{{ detail if detail is string else "Something went wrong." }}</h1>
+    <div class="actions" style="justify-content: center">
+        <a href="/dashboard" class="btn btn-ghost">Dashboard</a>
+        <a href="/" class="btn btn-primary">{{ icon("plus") }} New bill</a>
+    </div>
+</section>
+{% endblock %}

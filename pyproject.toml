@@ -1,0 +1,12 @@
+[project]
+name = "billing-system"
+version = "2.0.0"
+description = "FastAPI point-of-sale billing with tax, change calculation and emailed invoices."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # Raised inside Starlette's own TestClient import; not actionable here.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

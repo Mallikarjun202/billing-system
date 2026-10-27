@@ -1,0 +1,44 @@
+{% macro item_row(selected, quantity) %}
+<div class="cart-row item-row">
+    <span class="avatar sm" data-avatar>?</span>
+    <div>
+        <select name="product_id" aria-label="Product" required>
+            <option value="">Choose a product…</option>
+            {% for p in products %}
+            <option value="{{ p.product_id }}" {% if p.product_id == selected %}selected{% endif %} {% if p.available_stock == 0 %}disabled{% endif %}>
+                {{ p.name }} ({{ p.product_id }}){% if p.available_stock == 0 %} - sold out{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+        <small class="row-hint"></small>
+    </div>
+    <div class="stepper">
+        <button type="button" data-step="-1" aria-label="Decrease quantity"><svg class="i" aria-hidden="true"><use href="#i-minus"/></svg></button>
+        <input type="number" name="quantity" min="1" step="1" inputmode="numeric" value="{{ quantity }}" aria-label="Quantity" required>
+        <button type="button" data-step="1" aria-label="Increase quantity"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg></button>
+    </div>
+    <span class="line-total">{{ currency }}0.00</span>
+    <button type="button" class="icon-btn remove-row" aria-label="Remove item" title="Remove item"><svg class="i" aria-hidden="true"><use href="#i-trash"/></svg></button>
+</div>
+{% endmacro %}
+
+{% macro icon(name, cls="") -%}
+<svg class="i {{ cls }}" aria-hidden="true"><use href="#i-{{ name }}"/></svg>
+{%- endmacro %}
+
+{% macro avatar(text, key=None, size="") -%}
+<span class="avatar {{ size }}" style="--h: {{ (key or text) | hue }}" aria-hidden="true">{{ text | initials }}</span>
+{%- endmacro %}
+
+{# Keep labels and icons in step with EMAIL_BADGES in static/js/live.js. #}
+{% macro email_badge(status) -%}
+{% set labels = {"sent": "Emailed", "saved": "Saved to outbox", "failed": "Email failed", "pending": "Sending…"} %}
+{% set icons = {"sent": "check", "saved": "mail", "failed": "alert", "pending": "mail"} %}
+<span class="badge badge-{{ status }}">{{ icon(icons.get(status, "mail")) }}{{ labels.get(status, status) }}</span>
+{%- endmacro %}
+
+{% macro cash_token(value, count=None) -%}
+<span class="token {{ 'coin' if value <= 5 else 'note' }} {{ 'v' ~ value }}">
+    <span class="token-face">{{ currency }}{{ value }}</span>{% if count is not none %}<span class="token-count">× {{ count }}</span>{% endif %}
+</span>
+{%- endmacro %}

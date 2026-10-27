@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Invoice #{{ purchase.id }}{% endblock %}
+{% block content %}
+{% from "_macros.html" import email_badge, icon, avatar, cash_token %}
+{% if is_new %}
+<div class="alert alert-success no-print" role="status">
+    {{ icon("check") }}
+    <div><strong>Bill generated.</strong> The invoice for {{ purchase.customer_email }} is being sent in the background. Its status updates below by itself.</div>
+</div>
+{% endif %}
+
+<article class="card receipt">
+    <header class="receipt-band">
+        <div style="position: relative; z-index: 1">
+            <div class="eyebrow">{{ icon("receipt") }} {{ app_name }}</div>
+            <h1>Invoice #{{ purchase.id }}</h1>
+            <span class="paid-stamp">{{ icon("check") }} PAID</span>
+        </div>
+        <div class="band-meta">
+            <span>Issued</span>
+            <strong>{{ purchase.created_at | datetime }}</strong>
+            <span style="margin-top: 8px">Amount paid</span>
+            <strong style="font-size: 1.5rem">{{ purchase.rounded_net_price | money }}</strong>
+        </div>
+    </header>
+
+    <div class="receipt-body">
+        <div class="receipt-parties">
+            <a class="who" href="/purchases?email={{ purchase.customer_email | urlencode }}" style="color: inherit">
+                {{ avatar(purchase.customer_email, size="lg") }}
+                <span class="who-text">
+                    <small>Billed to</small>
+                    <strong>{{ purchase.customer_email }}</strong>
+                </span>
+            </a>
+            <div class="email-status no-print" id="email-status"
+                 data-purchase="{{ purchase.id }}" data-status="{{ purchase.email_status }}">
+                <small class="muted">Invoice email</small>
+                <span data-email-badge>{{ email_badge(purchase.email_status) }}</span>
+                <small class="email-error" data-email-error {% if not purchase.email_error %}hidden{% endif %}>{{ purchase.email_error or "" }}</small>
+                <button type="button" class="btn btn-ghost btn-sm" data-email-resend {% if purchase.email_status == "pending" %}hidden{% endif %}>
+                    {{ icon("mail") }} <span>{{ "Try again" if purchase.email_status == "failed" else "Resend" }}</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table receipt-items">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th class="num">Unit price</th>
+                        <th class="num">Qty</th>
+                        <th class="num">Price</th>
+                        <th class="num">Tax</th>
+                        <th class="num">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in purchase.items %}
+                    <tr>
+                        <td>
+                            <span class="who">
+                                {{ avatar(item.product_name, item.product_id, "sm") }}
+                                <span class="who-text"><strong>{{ item.product_name }}</strong><small>{{ item.product_id }}</small></span>
+                            </span>
+                        </td>
+                        <td class="num">{{ item.unit_price | money }}</td>
+                        <td class="num">{{ item.quantity }}</td>
+                        <td class="num">{{ item.purchase_price | money }}</td>
+                        <td class="num">{{ item.tax_payable | money }}<br><small class="muted">{{ item.tax_percentage | percent }}</small></td>
+                        <td class="num"><strong>{{ item.total_price | money }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="receipt-foot">
+            <section>
+                <h3 style="margin-bottom: 14px">Change handed back</h3>
+                {% if purchase.balance_denominations %}
+                <div class="tokens">
+                    {% for bd in purchase.balance_denominations %}{{ cash_token(bd.value, bd.count) }}{% endfor %}
+                </div>
+                {% else %}
+                <p class="muted">No change due, exact amount paid.</p>
+                {% endif %}
+                {% if purchase.undispensed_amount > 0 %}
+                <div class="alert alert-warning" style="margin: 16px 0 0">
+                    {{ icon("alert") }}
+                    <div>The drawer couldn't cover <strong>{{ purchase.undispensed_amount | money }}</strong> of the change. Settle it with the customer manually.</div>
+                </div>
+                {% endif %}
+            </section>
+
+            <div>
+                <dl class="totals">
+                    <div><dt>Total without tax</dt><dd>{{ purchase.total_price_without_tax | money }}</dd></div>
+                    <div><dt>Total tax</dt><dd>{{ purchase.total_tax_payable | money }}</dd></div>
+                    <div><dt>Net price</dt><dd>{{ purchase.net_price | money }}</dd></div>
+                    <div class="grand"><dt>Amount due <small>(rounded down)</small></dt><dd>{{ purchase.rounded_net_price | money }}</dd></div>
+                    <div><dt>Cash received</dt><dd>{{ purchase.cash_paid | money }}</dd></div>
+                </dl>
+                <div class="balance-card">
+                    <span><strong style="font-size: 1rem">Balance to customer</strong></span>
+                    <strong>{{ purchase.balance_amount | money }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</article>
+
+<div class="actions no-print">
+    <a href="/" class="btn btn-primary">{{ icon("plus") }} New bill</a>
+    <button type="button" class="btn" onclick="window.print()">{{ icon("printer") }} Print</button>
+    <a href="/purchases?email={{ purchase.customer_email | urlencode }}" class="btn btn-ghost">{{ icon("history") }} Customer history</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/invoice.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ app_name }}{% endblock %} · {{ app_name }}</title>
+    <link rel="icon" href="{{ url_for('static', path='img/favicon.svg') }}" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+</head>
+<body>
+    {% include "_icons.html" %}
+    {% from "_macros.html" import icon %}
+    {% set path = request.url.path %}
+    <header class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="/dashboard">
+                <span class="brand-mark">{{ icon("receipt") }}</span>
+                <span class="brand-name">{{ app_name }}</span>
+            </a>
+            <nav class="nav" aria-label="Main">
+                <a href="/dashboard" {% if path == '/dashboard' %}aria-current="page"{% endif %}>{{ icon("dashboard") }}<span>Dashboard</span></a>
+                <a href="/" {% if path == '/' or path == '/bills' %}aria-current="page"{% endif %}>{{ icon("cart") }}<span>New bill</span></a>
+                <a href="/purchases" {% if path.startswith('/purchases') %}aria-current="page"{% endif %}>{{ icon("history") }}<span>Purchases</span></a>
+                <a href="/products" {% if path.startswith('/products') %}aria-current="page"{% endif %}>{{ icon("package") }}<span>Products</span></a>
+                <a href="/docs">{{ icon("code") }}<span>API</span></a>
+            </nav>
+            <span class="live-status" id="live-status" data-state="connecting" role="status" title="Connecting for live updates…">
+                <span class="live-dot" aria-hidden="true"></span><span class="live-label">Connecting</span>
+            </span>
+            {% if path != '/' and path != '/bills' %}
+            <a href="/" class="btn btn-primary btn-sm topbar-cta">{{ icon("plus") }} New bill</a>
+            {% endif %}
+        </div>
+    </header>
+    <main class="page">
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="footer no-print">{{ app_name }} · Built with FastAPI</footer>
+    <div class="toasts no-print" id="toasts" aria-live="polite"></div>
+    <script>window.CURRENCY = {{ currency | tojson }};</script>
+    <script src="{{ url_for('static', path='js/live.js') }}" defer></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,22 @@
+{% autoescape false %}{{ app_name }} - Invoice #{{ purchase.id }}
+Date: {{ purchase.created_at | datetime }}
+Customer: {{ purchase.customer_email }}
+
+Items
+{% for item in purchase.items -%}
+- {{ item.product_name }} ({{ item.product_id }}) x{{ item.quantity }} @ {{ item.unit_price | money }} = {{ item.purchase_price | money }} + tax {{ item.tax_payable | money }} ({{ item.tax_percentage | percent }}) = {{ item.total_price | money }}
+{% endfor %}
+Total without tax:   {{ purchase.total_price_without_tax | money }}
+Total tax:           {{ purchase.total_tax_payable | money }}
+Net price:           {{ purchase.net_price | money }}
+Amount due (rounded down): {{ purchase.rounded_net_price | money }}
+Cash paid:           {{ purchase.cash_paid | money }}
+Balance returned:    {{ purchase.balance_amount | money }}
+{% if purchase.balance_denominations %}
+Change given:
+{% for bd in purchase.balance_denominations %}  {{ currency }}{{ bd.value }} x {{ bd.count }}
+{% endfor %}{% endif %}{% if purchase.undispensed_amount > 0 %}
+Note: {{ purchase.undispensed_amount | money }} of the balance could not be given in notes/coins.
+{% endif %}
+Thank you for shopping with us!
+{% endautoescape %}

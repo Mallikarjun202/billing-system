@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Dashboard</div>
+{% endblock %}
+{% block content %}
+{% from "_macros.html" import icon, avatar, email_badge, cash_token %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ icon("dashboard") }} Overview</div>
+        <h1>Dashboard</h1>
+        <p>How the shop is doing today and over the last 7 days.</p>
+    </div>
+</div>
+
+<div class="live-region" data-live="dashboard" data-live-on="purchase products drawer">
+<div class="kpis">
+    <div class="card kpi hero">
+        <div class="kpi-top"><span class="kpi-label">Today's sales</span><span class="section-icon">{{ icon("trending") }}</span></div>
+        <div class="kpi-value" data-flash>{{ d.today_revenue | money }}</div>
+        <div class="kpi-sub">{{ d.week_revenue | money }} in the last 7 days</div>
+    </div>
+    <div class="card kpi">
+        <div class="kpi-top"><span class="kpi-label">Bills today</span><span class="section-icon">{{ icon("receipt") }}</span></div>
+        <div class="kpi-value" data-flash>{{ d.today_bills }}</div>
+        <div class="kpi-sub">{{ d.today_items }} item{{ "s" if d.today_items != 1 }} sold today</div>
+    </div>
+    <div class="card kpi">
+        <div class="kpi-top"><span class="kpi-label">Average bill</span><span class="section-icon">{{ icon("wallet") }}</span></div>
+        <div class="kpi-value" data-flash>{{ d.average_bill | money }}</div>
+        <div class="kpi-sub">across {{ d.bill_count }} bill{{ "s" if d.bill_count != 1 }} all time</div>
+    </div>
+    <div class="card kpi">
+        <div class="kpi-top"><span class="kpi-label">Customers</span><span class="section-icon">{{ icon("users") }}</span></div>
+        <div class="kpi-value" data-flash>{{ d.customers }}</div>
+        <div class="kpi-sub">{{ d.revenue_total | money }} lifetime sales</div>
+    </div>
+</div>
+
+<div class="grid-3">
+    <section class="card">
+        <div class="card-head">
+            <div>
+                <h2>Sales, last 7 days</h2>
+                <div class="sub">Amount collected per day (rounded bill totals)</div>
+            </div>
+        </div>
+        <div class="chart" role="img" aria-label="Column chart of daily sales for the last 7 days. Use the table below for exact values.">
+            <div class="chart-plot">
+                <div class="chart-grid">
+                    {% for tick in d.chart_ticks %}
+                    <div style="top: {{ 100 - (tick / d.chart_ticks[0] * 100) }}%"><span>{{ tick | money_short }}</span></div>
+                    {% endfor %}
+                </div>
+                <div class="chart-cols">
+                    {% for day in d.chart %}
+                    <div class="chart-col {{ 'today' if day.is_today }}" tabindex="0">
+                        {% if day.is_today and day.revenue > 0 %}<span class="chart-value" style="bottom: {{ day.pct }}%">{{ day.revenue | money_short }}</span>{% endif %}
+                        <div class="chart-bar" style="height: {{ day.pct }}%"></div>
+                        <div class="chart-tip" role="tooltip">
+                            {{ day.label }}, {{ day.date }}
+                            <strong>{{ day.revenue | money }}</strong>
+                            {{ day.bills }} bill{{ "s" if day.bills != 1 }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="chart-labels">
+                {% for day in d.chart %}<span class="{{ 'today' if day.is_today }}">{{ day.label }}</span>{% endfor %}
+            </div>
+        </div>
+        <details class="chart-table">
+            <summary>View as table</summary>
+            <table class="data-table">
+                <thead><tr><th>Day</th><th class="num">Bills</th><th class="num">Sales</th></tr></thead>
+                <tbody>
+                    {% for day in d.chart %}
+                    <tr><td>{{ day.label }}, {{ day.date }}</td><td class="num">{{ day.bills }}</td><td class="num">{{ day.revenue | money }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+    </section>
+
+    <section class="card">
+        <div class="card-head">
+            <div><h2>Best sellers</h2><div class="sub">By units sold, all time</div></div>
+        </div>
+        {% if d.top_products %}
+        <div class="rank">
+            {% for p in d.top_products %}
+            <div class="rank-row">
+                {{ avatar(p.name, p.product_id, "sm") }}
+                <div>
+                    <div class="rank-name"><span>{{ p.name }}</span><span class="muted">{{ p.qty }} sold</span></div>
+                    <div class="rank-meter"><span style="width: {{ p.pct }}%"></span></div>
+                </div>
+                <strong class="num small">{{ p.revenue | money_short }}</strong>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty"><span class="empty-icon">{{ icon("bag") }}</span><p>Sales will show up here after the first bill.</p></div>
+        {% endif %}
+    </section>
+</div>
+
+<div class="grid-2" style="margin-top: 20px">
+    <section class="card">
+        <div class="card-head">
+            <div><h2>Recent bills</h2><div class="sub">Latest purchases across all customers</div></div>
+            <a href="/purchases" class="btn btn-ghost btn-sm">View all {{ icon("arrow") }}</a>
+        </div>
+        {% if d.recent %}
+        <div class="list">
+            {% for p in d.recent %}
+            <a class="list-row" href="/purchases/{{ p.id }}" data-key="bill-{{ p.id }}">
+                <span class="who">
+                    {{ avatar(p.customer_email, size="sm") }}
+                    <span class="who-text">
+                        <strong>{{ p.customer_email }}</strong>
+                        <small>#{{ p.id }} · {{ p.created_at | datetime }} · {{ p.items | sum(attribute="quantity") }} items</small>
+                    </span>
+                </span>
+                <span class="amount">{{ p.rounded_net_price | money }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty"><span class="empty-icon">{{ icon("receipt") }}</span><p>No bills yet.</p><a href="/" class="btn btn-primary">Create the first bill</a></div>
+        {% endif %}
+    </section>
+
+    <div class="stack">
+        <section class="card">
+            <div class="card-head">
+                <div><h2>Low stock</h2><div class="sub">Fewer than {{ d.low_stock_limit }} left</div></div>
+                <a href="/products" class="btn btn-ghost btn-sm">Manage {{ icon("arrow") }}</a>
+            </div>
+            {% if d.low_stock %}
+            <div class="list">
+                {% for p in d.low_stock %}
+                <div class="list-row">
+                    <span class="who">{{ avatar(p.name, p.product_id, "sm") }}<span class="who-text"><strong>{{ p.name }}</strong><small>{{ p.product_id }}</small></span></span>
+                    {% if p.available_stock == 0 %}<span class="badge badge-danger">{{ icon("alert") }}Sold out</span>
+                    {% else %}<span class="badge badge-warn">{{ icon("alert") }}{{ p.available_stock }} left</span>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted" style="display: flex; gap: 8px; align-items: center">{{ icon("check") }} Everything is well stocked.</p>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <div class="card-head">
+                <div><h2>Cash drawer</h2><div class="sub" data-flash>{{ d.drawer_total | money }} available for change</div></div>
+            </div>
+            <div class="drawer-strip tokens">
+                {% for value, count in d.drawer %}{{ cash_token(value, count) }}{% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

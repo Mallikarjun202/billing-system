@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Purchases{% endblock %}
+{% block content %}
+{% from "_macros.html" import email_badge, icon, avatar %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ icon("history") }} History</div>
+        <h1>Purchases</h1>
+        <p>Search a customer's bills by email, or browse the latest ones.</p>
+    </div>
+</div>
+
+<form method="get" action="/purchases" class="card search-bar">
+    <label class="field grow">
+        <span>Customer email</span>
+        <span class="input-icon">
+            {{ icon("search") }}
+            <input type="email" name="email" required placeholder="customer@example.com" value="{{ email }}">
+        </span>
+    </label>
+    <button type="submit" class="btn btn-primary">{{ icon("search") }} Search</button>
+    {% if email %}<a href="/purchases" class="btn btn-ghost">Clear</a>{% endif %}
+</form>
+
+<section class="card live-region" data-live="purchases" data-live-on="purchase email">
+    {% if email and purchases %}
+    {% set spent = purchases | sum(attribute="rounded_net_price") %}
+    <div class="customer-head">
+        {{ avatar(email, size="lg") }}
+        <div class="who-text">
+            <small>Customer</small>
+            <strong style="font-size: 1.15rem">{{ email }}</strong>
+        </div>
+        <div class="mini-stats">
+            <div><span>Bills</span><strong>{{ purchases | length }}</strong></div>
+            <div><span>Total spent</span><strong>{{ spent | money }}</strong></div>
+            <div><span>Average</span><strong>{{ (spent / (purchases | length)) | money }}</strong></div>
+            <div><span>Last visit</span><strong style="font-size: .95rem; padding-top: 4px">{{ purchases[0].created_at | datetime }}</strong></div>
+        </div>
+    </div>
+    {% elif not email %}
+    <div class="card-head"><div><h2>Latest bills</h2><div class="sub">Most recent 20 across all customers</div></div></div>
+    {% endif %}
+
+    {% if purchases %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Invoice</th>
+                    {% if not email %}<th>Customer</th>{% endif %}
+                    <th>Date</th>
+                    <th class="num">Items</th>
+                    <th class="num">Net price</th>
+                    <th class="num">Paid</th>
+                    <th>Email</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in purchases %}
+                <tr class="clickable" onclick="location.href='/purchases/{{ p.id }}'" data-key="bill-{{ p.id }}">
+                    <td><a href="/purchases/{{ p.id }}"><strong>#{{ p.id }}</strong></a></td>
+                    {% if not email %}
+                    <td><span class="who">{{ avatar(p.customer_email, size="sm") }}<span class="who-text"><strong>{{ p.customer_email }}</strong></span></span></td>
+                    {% endif %}
+                    <td class="nowrap">{{ p.created_at | datetime }}</td>
+                    <td class="num">{{ p.items | sum(attribute="quantity") }}</td>
+                    <td class="num">{{ p.net_price | money }}</td>
+                    <td class="num"><strong>{{ p.rounded_net_price | money }}</strong></td>
+                    <td>{{ email_badge(p.email_status) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty">
+        <span class="empty-icon">{{ icon("receipt") }}</span>
+        {% if email %}
+        <p>No purchases found for <strong>{{ email }}</strong>.</p>
+        {% else %}
+        <p>No bills yet. Your first sale will appear here.</p>
+        {% endif %}
+        <a href="/" class="btn btn-primary">{{ icon("plus") }} Create a bill</a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

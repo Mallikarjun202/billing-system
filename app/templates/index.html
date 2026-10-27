@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}New bill{% endblock %}
+{% block content %}
+{% from "_macros.html" import item_row, icon, avatar, cash_token with context %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ icon("cart") }} Point of sale</div>
+        <h1>New bill</h1>
+        <p>Tap products to add them, take the cash, and the change is worked out from the drawer.</p>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-error" role="alert">{{ icon("alert") }}<div>{{ error }}</div></div>
+{% endif %}
+<div class="alert alert-info" role="status" id="catalog-changed" hidden>
+    {{ icon("package") }}
+    <div>The product list changed on another screen. <a href="/">Reload</a> to see it; your current bill will be cleared.</div>
+</div>
+
+<form id="billing-form" method="post" action="/bills" class="pos">
+    <div class="stack">
+        <section class="card">
+            <div class="card-head">
+                <div class="section-title">
+                    <span class="section-icon">{{ icon("bag") }}</span>
+                    <div><h2>Products</h2><div class="sub">{{ products | length }} in catalogue · tap to add</div></div>
+                </div>
+                <label class="input-icon" style="flex: 0 1 240px">
+                    {{ icon("search") }}
+                    <input type="search" id="product-search" placeholder="Search products" aria-label="Search products" autocomplete="off">
+                </label>
+            </div>
+            {% if products %}
+            <div class="product-grid" id="product-grid">
+                {% for p in products %}
+                <button type="button" class="product-tile" data-id="{{ p.product_id }}" data-search="{{ (p.product_id ~ ' ' ~ p.name) | lower }}"
+                        {% if p.available_stock == 0 %}disabled{% endif %} aria-label="Add {{ p.name }}">
+                    <span class="tile-qty" hidden>0</span>
+                    <span class="tile-add">{{ icon("plus") }}</span>
+                    {{ avatar(p.name, p.product_id) }}
+                    <span class="tile-name">{{ p.name }}<br><small class="muted">{{ p.product_id }} · {{ p.tax_percentage | percent }} tax</small></span>
+                    <span class="tile-meta">
+                        <span class="tile-price">{{ p.price | money }}</span>
+                        <span class="tile-stock">
+                        {%- if p.available_stock == 0 %}<span class="badge badge-danger">Sold out</span>
+                        {%- elif p.available_stock < 10 %}<span class="badge badge-warn">{{ p.available_stock }} left</span>
+                        {%- else %}<span class="badge">{{ p.available_stock }} in stock</span>{% endif -%}
+                        </span>
+                    </span>
+                </button>
+                {% endfor %}
+            </div>
+            <p class="muted small" id="no-match" hidden>No products match your search.</p>
+            {% else %}
+            <div class="empty">
+                <span class="empty-icon">{{ icon("package") }}</span>
+                <p>No products yet. Add some to start billing.</p>
+                <a href="/products" class="btn btn-primary">{{ icon("plus") }} Add a product</a>
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            <div class="card-head">
+                <div class="section-title">
+                    <span class="section-icon">{{ icon("receipt") }}</span>
+                    <div><h2>Bill items</h2><div class="sub" id="items-sub">No items yet</div></div>
+                </div>
+                <button type="button" class="btn btn-ghost btn-sm" id="add-row">{{ icon("plus") }} Add row</button>
+            </div>
+            <div id="item-rows">
+                {% for row in form.rows or [] %}
+                    {{ item_row(row.product_id, row.quantity) }}
+                {% endfor %}
+            </div>
+            <div class="empty" id="cart-empty" {% if form.rows %}hidden{% endif %}>
+                <span class="empty-icon">{{ icon("cart") }}</span>
+                <p>The bill is empty. Tap a product above to add it.</p>
+            </div>
+        </section>
+
+        <section class="card">
+            <details class="collapsible" {% if error and form.denominations %}open{% endif %}>
+                <summary>
+                    <div class="section-title">
+                        <span class="section-icon">{{ icon("banknote") }}</span>
+                        <div><h2>Cash drawer</h2><div class="sub">Notes &amp; coins available for change · <span id="drawer-total"></span></div></div>
+                    </div>
+                    <svg class="i chev" aria-hidden="true"><use href="#i-arrow"/></svg>
+                </summary>
+                <p class="muted small" style="margin-bottom: 14px">Fix any count before billing. Change only comes from what's in here.</p>
+                <div class="denom-grid">
+                    {% for value, count in denominations %}
+                    <label class="denom">
+                        {{ cash_token(value) }}
+                        <input type="number" name="denomination_{{ value }}" data-denom="{{ value }}" min="0" step="1" inputmode="numeric" value="{{ count }}" aria-label="{{ currency }}{{ value }} count">
+                    </label>
+                    {% endfor %}
+                </div>
+            </details>
+        </section>
+    </div>
+
+    <aside class="pos-side" aria-live="polite">
+        <div class="due-card">
+            <span class="due-items" data-total="items">0 items</span>
+            <div class="due-label">Amount due</div>
+            <div class="due-amount" data-total="due">{{ currency }}0</div>
+            <div class="due-note">Net <span data-total="net">{{ currency }}0.00</span>, rounded down</div>
+        </div>
+
+        <div class="card">
+            <label class="field">
+                <span>Customer email</span>
+                <span class="input-icon">
+                    {{ icon("mail") }}
+                    <input type="email" name="customer_email" required autocomplete="email"
+                           placeholder="customer@example.com" value="{{ form.customer_email or '' }}">
+                </span>
+            </label>
+
+            <dl class="totals" style="margin-bottom: 18px">
+                <div><dt>Subtotal</dt><dd data-total="subtotal">{{ currency }}0.00</dd></div>
+                <div><dt>Tax</dt><dd data-total="tax">{{ currency }}0.00</dd></div>
+                <div class="grand"><dt>Net price</dt><dd data-total="net2">{{ currency }}0.00</dd></div>
+            </dl>
+
+            <label class="field">
+                <span>Cash received</span>
+                <span class="cash-input">
+                    <span class="prefix">{{ currency }}</span>
+                    <input type="number" name="cash_paid" min="0" step="0.01" inputmode="decimal" required
+                           placeholder="0" value="{{ form.cash_paid or '' }}">
+                </span>
+            </label>
+            <div class="quick-cash" id="quick-cash"></div>
+
+            <div class="change-box" data-change>
+                <div class="change-head"><span data-change-label>Change to return</span><strong data-total="balance">{{ currency }}0.00</strong></div>
+                <div class="tokens" data-change-tokens></div>
+                <div class="change-hint" data-change-hint hidden></div>
+            </div>
+
+            <div class="actions" style="display: grid">
+                <button type="submit" class="btn btn-primary btn-lg btn-block">{{ icon("check") }} <span>Generate bill</span></button>
+                <a href="/" class="btn btn-ghost btn-block">Start over</a>
+            </div>
+        </div>
+    </aside>
+</form>
+
+<template id="row-template">{{ item_row("", "1") }}</template>
+<script id="catalog" type="application/json">{{ catalog | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/billing.js') }}" defer></script>
+{% endblock %}

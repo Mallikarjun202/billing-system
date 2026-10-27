@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Products{% endblock %}
+{% block content %}
+{% from "_macros.html" import icon, avatar %}
+{% set max_stock = (products | map(attribute="available_stock") | max) if products else 0 %}
+{% set stock_value = namespace(total=0) %}
+{% for p in products %}{% set stock_value.total = stock_value.total + p.price * p.available_stock %}{% endfor %}
+<div class="page-head">
+    <div>
+        <div class="eyebrow">{{ icon("package") }} Catalogue</div>
+        <h1>Products</h1>
+        <p data-live="products-summary" data-live-on="products">{{ products | length }} product{{ "s" if products | length != 1 }} · {{ stock_value.total | money }} of stock at list price</p>
+    </div>
+    <button type="button" class="btn btn-primary" data-action="new">{{ icon("plus") }} Add product</button>
+</div>
+
+<div class="alert alert-error" role="alert" id="page-error" hidden></div>
+
+<section class="card live-region" data-live="products" data-live-on="products">
+    {% if products %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th class="num">Price</th>
+                    <th class="num">Tax</th>
+                    <th class="num">Stock</th>
+                    <th class="num"><span class="sr-only">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in products %}
+                {% set pct = (p.available_stock / max_stock * 100) if max_stock else 0 %}
+                <tr data-key="product-{{ p.product_id }}" data-product='{{ {"product_id": p.product_id, "name": p.name, "available_stock": p.available_stock, "price": p.price, "tax_percentage": p.tax_percentage} | tojson | forceescape }}'>
+                    <td>
+                        <span class="who">
+                            {{ avatar(p.name, p.product_id) }}
+                            <span class="who-text"><strong>{{ p.name }}</strong><small><code>{{ p.product_id }}</code></small></span>
+                        </span>
+                    </td>
+                    <td class="num"><strong>{{ p.price | money }}</strong></td>
+                    <td class="num">{{ p.tax_percentage | percent }}</td>
+                    <td class="num">
+                        <div class="stock-cell">
+                            {% if p.available_stock == 0 %}<span class="badge badge-danger">Sold out</span>
+                            {% elif p.available_stock < 10 %}<span class="badge badge-warn">{{ p.available_stock }} left</span>
+                            {% else %}<span>{{ p.available_stock }} in stock</span>{% endif %}
+                            <span class="stock-meter {{ 'out' if p.available_stock == 0 else 'low' if p.available_stock < 10 }}"><span style="width: {{ [pct, 3] | max if p.available_stock else 0 }}%"></span></span>
+                        </div>
+                    </td>
+                    <td class="num">
+                        <span class="row-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" data-action="edit">{{ icon("edit") }} Edit</button>
+                            <button type="button" class="btn btn-danger btn-sm" data-action="delete" aria-label="Delete {{ p.name }}">{{ icon("trash") }}</button>
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty">
+        <span class="empty-icon">{{ icon("package") }}</span>
+        <p>No products yet. Add your first one to start billing.</p>
+        <button type="button" class="btn btn-primary" data-action="new">{{ icon("plus") }} Add product</button>
+    </div>
+    {% endif %}
+</section>
+
+<dialog id="product-dialog" class="dialog">
+    <form method="dialog" id="product-form" novalidate>
+        <h2 id="dialog-title">Add product</h2>
+        <div class="alert alert-error" role="alert" id="form-error" hidden></div>
+        <div class="form-grid">
+            <label class="field">
+                <span>Product ID</span>
+                <input name="product_id" required maxlength="32" pattern="[A-Za-z0-9_\-]+" placeholder="P006" autocomplete="off">
+            </label>
+            <label class="field">
+                <span>Name</span>
+                <input name="name" required maxlength="100" placeholder="Stapler">
+            </label>
+            <label class="field">
+                <span>Price ({{ currency }})</span>
+                <input name="price" type="number" min="0" step="0.01" required placeholder="0.00">
+            </label>
+            <label class="field">
+                <span>Tax %</span>
+                <input name="tax_percentage" type="number" min="0" max="100" step="0.01" value="0">
+            </label>
+            <label class="field">
+                <span>Stock</span>
+                <input name="available_stock" type="number" min="0" step="1" required value="0">
+            </label>
+        </div>
+        <div class="actions end">
+            <button type="button" class="btn btn-ghost" data-action="cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary" value="save">{{ icon("check") }} Save product</button>
+        </div>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/products.js') }}" defer></script>
+{% endblock %}
