@@ -24,7 +24,10 @@ It runs on your own computer. There's no login and nothing to sign up for: start
 - Billing page where you tap products to add them, adjust quantities and see the change before you submit
 - Tax is calculated per item, and the final amount is rounded down to the rupee
 - Change is worked out from the drawer's stock. If the drawer can't make the exact change (say it has one ₹50 and three ₹20s and you owe ₹60), it still finds a way. If it really can't, the bill records how much is short.
+- The customer's cash goes into the drawer before change is worked out, so their own notes can come back as change. The cashier can say which notes were handed over; otherwise the fewest notes are assumed (₹600 is taken as one ₹500 and one ₹100).
+- The drawer handles every note and coin in everyday use: ₹500, 200, 100, 50, 20, 10, 5, 2 and 1
 - A bill is saved all at once or not at all, so stock and drawer counts never get half-updated
+- Two tills can't sell the last item twice. Stock is taken with a conditional update, so if two bills race for the last unit, one goes through and the other is told it just sold out.
 - Invoices are emailed in the background. If email isn't set up, they're saved as files in `data/sent_emails/` instead.
 - Dashboard with today's sales, a 7-day chart, best sellers and low stock
 - Purchase history per customer, and printable invoices
@@ -109,7 +112,7 @@ Everything the pages do is also available as a JSON API. The interactive docs ar
 | GET, POST | `/api/products` | List products, add one |
 | GET, PATCH, DELETE | `/api/products/{id}` | Get, update or delete a product |
 | GET, PUT | `/api/denominations` | See or set the drawer's notes and coins |
-| POST | `/api/bills` | Make a bill |
+| POST | `/api/bills` | Make a bill (optional `cash_notes` says which notes the customer gave) |
 | GET | `/api/purchases?email=` | A customer's purchases |
 | GET | `/api/purchases/{id}` | One purchase with items and change |
 | GET, POST | `/api/purchases/{id}/email` | Check the invoice email status, or resend it |
@@ -124,6 +127,20 @@ curl -X POST http://127.0.0.1:8000/api/bills -H "Content-Type: application/json"
   "cash_paid": 1100
 }'
 ```
+
+## Bugs I found and fixed
+
+Going back over the code with concurrent tests turned up three real problems:
+
+- **The drawer only ever lost money.** Change was taken out, but the customer's cash was never put in. After a day of sales the app would refuse to give change it physically had. A test now checks that the drawer grows by exactly the amount the shop keeps.
+- **Two tills could sell the same last item.** Stock was read, checked, then written back as a new number. With 8 bills racing for 1 item, all 8 succeeded. `tests/test_concurrency.py` reproduces it: the old code records 8 sales of a single item, the new code records 1.
+- **No ₹100 or ₹200 notes.** Change for ₹100 came back as two ₹50s. Existing databases get empty slots for the new notes on startup.
+
+## Known limitations
+
+- Money is calculated with `Decimal` but stored in `Float` columns. The values are rounded to two places before saving, so it's fine at shop scale, but a `Numeric` column would be the right type. Changing it needs a migration.
+- There's no login. It's meant to run on the shop's own computer, not on a public server.
+- SQLite allows one writer at a time. Fine for one or two tills; use Postgres via `DATABASE_URL` for more.
 
 ## Code layout
 
@@ -142,7 +159,7 @@ app/
   routers/       web pages and the JSON API
   templates/     HTML and email templates
   static/        CSS and JavaScript
-tests/           pytest tests
+tests/           pytest tests, including a concurrency test
 docs/            screenshots for this README
 ```
 

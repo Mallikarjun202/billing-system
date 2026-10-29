@@ -106,6 +106,10 @@ class BillRequest(BaseModel):
         default=None,
         description="Optional: overwrite the shop's denomination stock before computing change.",
     )
+    cash_notes: list[DenominationIn] | None = Field(
+        default=None,
+        description="Optional: the notes the customer handed over. If omitted, the fewest notes that make cash_paid are assumed.",
+    )
 
 
 class PurchaseItemOut(ORMModel):

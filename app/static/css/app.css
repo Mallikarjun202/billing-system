@@ -330,6 +330,8 @@ input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 4px 
     background: linear-gradient(135deg, #d9f2dc, #b9e4c1);
 }
 .token.note.v500 .token-face { background: linear-gradient(135deg, #e3e6d6, #c9ceb2); color: #2f3320; }
+.token.note.v200 .token-face { background: linear-gradient(135deg, #fbe3b8, #f2c77d); color: #4a3208; }
+.token.note.v100 .token-face { background: linear-gradient(135deg, #e4dcf4, #cbbde9); color: #2e2250; }
 .token.note.v50 .token-face { background: linear-gradient(135deg, #d6effa, #b2dcef); color: #133a4c; }
 .token.note.v20 .token-face { background: linear-gradient(135deg, #f0efc8, #dedca0); color: #3b3a12; }
 .token.note.v10 .token-face { background: linear-gradient(135deg, #f1dcc8, #e0bfa0); color: #43281a; }

@@ -99,6 +99,7 @@ def create_bill(payload: schemas.BillRequest, background_tasks: BackgroundTasks,
             [billing.BillLine(i.product_id, i.quantity) for i in payload.items],
             payload.cash_paid,
             [(d.value, d.count) for d in payload.denominations] if payload.denominations else None,
+            {d.value: d.count for d in payload.cash_notes} if payload.cash_notes else None,
         )
     except billing.BillingError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

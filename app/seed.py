@@ -17,7 +17,7 @@ SAMPLE_PRODUCTS = [
     ("P005", "Desk Lamp", 20, 650.0, 18.0),
 ]
 
-STARTING_DENOMINATIONS = {500: 10, 50: 20, 20: 20, 10: 20, 5: 20, 2: 20, 1: 20}
+STARTING_DENOMINATIONS = {500: 10, 200: 10, 100: 20, 50: 20, 20: 20, 10: 20, 5: 20, 2: 20, 1: 20}
 
 
 # Columns added after the first release: (table, column, SQL type).
@@ -44,6 +44,11 @@ def seed() -> None:
             )
         if not db.scalar(select(func.count()).select_from(models.Denomination)):
             db.add_all(models.Denomination(value=v, count=STARTING_DENOMINATIONS.get(v, 0)) for v in DENOMINATIONS)
+        else:
+            # Databases created before the 200 and 100 notes were added get
+            # empty drawer slots for them, so the drawer always has every note.
+            existing = set(db.scalars(select(models.Denomination.value)))
+            db.add_all(models.Denomination(value=v, count=0) for v in DENOMINATIONS if v not in existing)
         db.commit()
 
 

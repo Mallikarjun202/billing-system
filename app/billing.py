@@ -8,13 +8,13 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from . import events, models
 
-# Notes/coins the shop gives change in, largest first.
-DENOMINATIONS: tuple[int, ...] = (500, 50, 20, 10, 5, 2, 1)
+# Indian notes and coins in everyday circulation, largest first.
+DENOMINATIONS: tuple[int, ...] = (500, 200, 100, 50, 20, 10, 5, 2, 1)
 
 # Above this many rupees of change, skip the exact search and use greedy only.
 _EXACT_CHANGE_LIMIT = 200_000
@@ -138,6 +138,31 @@ def set_denomination_stock(db: Session, counts: Iterable[tuple[int, int]]) -> No
     db.flush()
 
 
+def split_cash(amount: Decimal | float) -> dict[int, int]:
+    """How a customer most likely paid `amount` when the cashier didn't say:
+    fewest notes and coins, largest first. Paise are ignored (no paise coins)."""
+    whole = int(money(amount).to_integral_value(rounding=ROUND_FLOOR))
+    breakdown: dict[int, int] = {}
+    for value in DENOMINATIONS:
+        if whole >= value:
+            breakdown[value], whole = divmod(whole, value)
+    return breakdown
+
+
+def _add_to_drawer(db: Session, notes: Mapping[int, int]) -> None:
+    for value, count in notes.items():
+        if not count:
+            continue
+        result = db.execute(
+            update(models.Denomination)
+            .where(models.Denomination.value == value)
+            .values(count=models.Denomination.count + count)
+            .execution_options(synchronize_session=False)
+        )
+        if result.rowcount == 0:  # no drawer slot for this note yet
+            db.add(models.Denomination(value=value, count=count))
+
+
 # ---------------- bill ----------------
 
 
@@ -147,9 +172,16 @@ def generate_bill(
     lines: Iterable[BillLine],
     cash_paid: float | Decimal,
     denomination_stock: Iterable[tuple[int, int]] | None = None,
+    cash_notes: Mapping[int, int] | None = None,
 ) -> models.Purchase:
-    """Create a purchase, deduct product and change stock, all in one
-    transaction. Nothing is saved if any check fails."""
+    """Create a purchase, take the customer's cash into the drawer, give change
+    and deduct product stock, all in one transaction. Nothing is saved if any
+    check fails.
+
+    `denomination_stock` overwrites the drawer counts before this bill.
+    `cash_notes` says which notes the customer handed over; if omitted, it is
+    assumed they paid with the fewest notes possible (see split_cash).
+    """
     try:
         if denomination_stock is not None:
             set_denomination_stock(db, denomination_stock)
@@ -207,6 +239,21 @@ def generate_bill(
                 f"Cash paid ({cash:.2f}) is less than the amount due ({rounded_net:.2f})."
             )
 
+        # The customer's cash goes into the drawer first, so their own notes can
+        # be part of the change (pay with a 500 for a 120 bill, get notes back).
+        if cash_notes is None:
+            tendered = split_cash(cash)
+        else:
+            tendered = {int(v): int(c) for v, c in cash_notes.items() if c}
+            for value, count in tendered.items():
+                if value not in DENOMINATIONS or count < 0:
+                    raise BillingError(f"Unsupported cash note: {value} x {count}.")
+            whole_cash = int(cash.to_integral_value(rounding=ROUND_FLOOR))
+            if sum(v * c for v, c in tendered.items()) != whole_cash:
+                raise BillingError("The notes handed over don't add up to the cash paid.")
+        _add_to_drawer(db, tendered)
+        db.flush()
+
         balance = cash - rounded_net
         breakdown, undispensed = calculate_change(balance, get_denomination_stock(db))
 
@@ -226,11 +273,27 @@ def generate_bill(
         )
         db.add(purchase)
 
+        # Conditional UPDATEs instead of "read, check, write back": if two
+        # tills sell the last item at the same moment, only one UPDATE matches
+        # and the other bill is rejected instead of overselling.
         for code, qty in quantities.items():
-            products[code].available_stock -= qty
-        if breakdown:
-            for d in db.scalars(select(models.Denomination).where(models.Denomination.value.in_(breakdown))):
-                d.count -= breakdown[d.value]
+            result = db.execute(
+                update(models.Product)
+                .where(models.Product.product_id == code, models.Product.available_stock >= qty)
+                .values(available_stock=models.Product.available_stock - qty)
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                raise BillingError(f"{products[code].name} ({code}) just sold out. Check stock and try again.")
+        for value, count in breakdown.items():
+            result = db.execute(
+                update(models.Denomination)
+                .where(models.Denomination.value == value, models.Denomination.count >= count)
+                .values(count=models.Denomination.count - count)
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                raise BillingError("The drawer changed while this bill was being made. Try again.")
 
         db.commit()
     except Exception:

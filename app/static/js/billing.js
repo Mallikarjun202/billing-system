@@ -5,7 +5,7 @@
     const form = document.getElementById("billing-form");
     if (!form) return;
 
-    const DENOMS = [500, 50, 20, 10, 5, 2, 1];
+    const DENOMS = [500, 200, 100, 50, 20, 10, 5, 2, 1];  // keep in sync with app/billing.DENOMINATIONS
     const HUES = [232, 262, 292, 330, 12, 38, 160, 190]; // same as templating.avatar_hue
 
     const rowsEl = document.getElementById("item-rows");
@@ -35,6 +35,16 @@
             stock[input.dataset.denom] = Math.max(0, parseInt(input.value, 10) || 0);
         }
         return stock;
+    }
+
+    // How the customer most likely paid (mirrors app/billing.split_cash).
+    function splitCash(rupees) {
+        const notes = {};
+        let left = rupees;
+        for (const v of DENOMS) {
+            if (left >= v) { notes[v] = Math.floor(left / v); left %= v; }
+        }
+        return notes;
     }
 
     function makeChange(amount, stock) {
@@ -233,7 +243,10 @@
 
         if (raw === "" || balance <= 0) return;
         const whole = Math.floor(balance / 100);
-        const change = makeChange(whole, drawerStock());
+        // The server puts the customer's cash in the drawer before giving change.
+        const stock = drawerStock();
+        for (const [v, c] of Object.entries(splitCash(Math.floor(toPaise(raw) / 100)))) stock[v] = (stock[v] || 0) + c;
+        const change = makeChange(whole, stock);
         const given = Object.entries(change).reduce((s, [v, c]) => s + v * c, 0);
         tokens.innerHTML = Object.entries(change)
             .sort((a, b) => b[0] - a[0])

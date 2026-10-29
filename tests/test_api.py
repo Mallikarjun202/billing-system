@@ -31,7 +31,7 @@ def test_bill_flow_and_email_outbox(client, outbox):
     bill = r.json()
     assert bill["rounded_net_price"] == 896  # 800 + 12% tax
     assert bill["balance_amount"] == 104
-    assert bill["balance_denominations"] == [{"value": 50, "count": 2}, {"value": 2, "count": 2}]
+    assert bill["balance_denominations"] == [{"value": 100, "count": 1}, {"value": 2, "count": 2}]
     assert bill["created_at"].endswith("+00:00")
 
     # Background task ran: SMTP is off in tests, so the invoice is saved to disk.
@@ -120,3 +120,11 @@ def test_latest_purchases_without_email(client):
     client.post("/api/bills", json={"customer_email": "x@example.com", "items": [{"product_id": "P002", "quantity": 1}], "cash_paid": 20})
     r = client.get("/purchases")
     assert r.status_code == 200 and "Latest bills" in r.text and "x@example.com" in r.text
+
+
+def test_bill_with_explicit_cash_notes(client):
+    body = {"customer_email": "a@example.com", "items": [{"product_id": "P001", "quantity": 1}], "cash_paid": 100}
+    r = client.post("/api/bills", json={**body, "cash_notes": [{"value": 50, "count": 2}]})
+    assert r.status_code == 201, r.text
+    r = client.post("/api/bills", json={**body, "cash_notes": [{"value": 50, "count": 1}]})
+    assert r.status_code == 400 and "add up" in r.json()["detail"]

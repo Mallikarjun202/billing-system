@@ -48,10 +48,33 @@ class TestGenerateBill:
         assert purchase.undispensed_amount == 0
 
     def test_deducts_product_and_drawer_stock(self, db):
-        generate_bill(db, "a@example.com", [BillLine("P001", 2)], 600)  # due 105, change 495
+        # due 105, paid 600 (assumed 500 + 100), change 495 = 200 + 200 + 50 + 20 + 20 + 5
+        generate_bill(db, "a@example.com", [BillLine("P001", 2)], 600)
+        db.expire_all()
         assert db.query(models.Product).filter_by(product_id="P001").one().available_stock == 98
         stock = billing.get_denomination_stock(db)
-        assert stock[50] == 20 - 9 and stock[20] == 20 - 2 and stock[5] == 19
+        assert stock[500] == 10 + 1 and stock[100] == 20 + 1  # the customer's cash went in
+        assert stock[200] == 10 - 2 and stock[50] == 20 - 1 and stock[20] == 20 - 2 and stock[5] == 20 - 1
+
+    def test_customers_cash_goes_into_the_drawer(self, db):
+        def drawer_total():
+            db.expire_all()
+            return sum(v * c for v, c in billing.get_denomination_stock(db).items())
+
+        before = drawer_total()
+        purchase = generate_bill(db, "a@example.com", [BillLine("P001", 1)], 1000)  # due 52
+        # Drawer grows by exactly what the shop kept: cash in minus change out.
+        assert drawer_total() == before + purchase.rounded_net_price
+
+    def test_cashier_can_say_which_notes_were_handed_over(self, db):
+        generate_bill(db, "a@example.com", [BillLine("P001", 1)], 100, cash_notes={50: 2})  # due 52
+        db.expire_all()
+        assert billing.get_denomination_stock(db)[50] == 20 + 2 - 0  # change 48 = 20+20+5+2+1
+        with pytest.raises(BillingError, match="don't add up"):
+            generate_bill(db, "a@example.com", [BillLine("P001", 1)], 100, cash_notes={50: 1})
+
+    def test_split_cash_uses_fewest_notes(self):
+        assert billing.split_cash(Decimal("1886.75")) == {500: 3, 200: 1, 100: 1, 50: 1, 20: 1, 10: 1, 5: 1, 1: 1}
 
     def test_repeated_product_lines_are_merged_for_stock_check(self, db):
         # Desk Lamp has 20 in stock: 15 + 10 must be rejected even though each line fits.
@@ -88,3 +111,16 @@ def test_dashboard_numbers(db):
     assert d["chart"][-1]["is_today"] and d["chart"][-1]["revenue"] == 115
     assert d["top_products"][0]["product_id"] == "P001"
     assert dashboard.nice_ceiling(115) == 200 and dashboard.nice_ceiling(0) == 100
+
+
+def test_old_database_gets_new_note_slots(db):
+    # A drawer created before 200 and 100 notes existed
+    db.query(models.Denomination).filter(models.Denomination.value.in_([200, 100])).delete()
+    db.commit()
+    from app.seed import seed
+
+    seed()
+    db.expire_all()
+    stock = billing.get_denomination_stock(db)
+    assert stock[200] == 0 and stock[100] == 0
+    assert db.query(models.Denomination).count() == len(billing.DENOMINATIONS)
